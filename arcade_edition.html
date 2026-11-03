@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-MY">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>马来西亚历史大冒险：iPad街机爪爪机 | Claw Machine Arcade</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+SC:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Fredoka', 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #f8fafc;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /*  Arcade Machine Chassis */
+        .arcade-cabinet {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 6px solid #fbbf24;
+            box-shadow: 0 0 35px rgba(251, 191, 36, 0.3), inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* Glass Reflection */
+        .glass-reflection {
+            background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0) 100%);
+        }
+
+        /* Claw Animation & Rigging */
+        .claw-rope {
+            position: absolute;
+            width: 6px;
+            background: linear-gradient(90deg, #94a3b8, #cbd5e1, #64748b);
+            top: 0;
+            z-index: 20;
+            transform-origin: top center;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .claw-head {
+            position: absolute;
+            width: 60px;
+            height: 50px;
+            transform: translate(-50%, -10px);
+            z-index: 21;
+            transition: transform 0.1s ease-out;
+        }
+        .claw-arm-left, .claw-arm-right {
+            position: absolute;
+            width: 14px;
+            height: 32px;
+            background: #e2e8f0;
+            border: 2px solid #475569;
+            border-radius: 6px;
+            top: 28px;
+            transition: transform 0.2s ease;
+        }
+        .claw-arm-left {
+            left: 10px;
+            transform-origin: top right;
+            transform: rotate(-25deg);
+        }
+        .claw-arm-right {
+            right: 10px;
+            transform-origin: top left;
+            transform: rotate(25deg);
+        }
+        .claw-grabbing .claw-arm-left {
+            transform: rotate(15deg);
+        }
+        .claw-grabbing .claw-arm-right {
+            transform: rotate(-15deg);
+        }
+
+        /* Egg Capsule styling */
+        .egg-capsule {
+            position: absolute;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            box-shadow: inset -5px -5px 10px rgba(0,0,0,0.3), inset 3px 3px 6px rgba(255,255,255,0.5), 0 8px 15px rgba(0,0,0,0.4);
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .egg-capsule:active {
+            transform: scale(0.95);
+        }
+
+        /* Control Buttons styling for iPad Touch */
+        .pad-btn {
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            border: 3px solid #60a5fa;
+            box-shadow: 0 6px 0 #1e40af, 0 10px 15px rgba(0,0,0,0.4);
+            transition: all 0.08s ease;
+        }
+        .pad-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #1e40af, 0 4px 6px rgba(0,0,0,0.4);
+        }
+
+        .grab-btn-giant {
+            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+            border: 4px solid #fca5a5;
+            box-shadow: 0 8px 0 #991b1b, 0 12px 20px rgba(239, 68, 68, 0.4);
+        }
+        .grab-btn-giant:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #991b1b, 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        /* Pulse glow */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(251, 191, 36, 0.8); }
+        }
+        .arcade-glow {
+            animation: pulseGlow 2.5s infinite;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen p-2 md:p-4 select-none">
+
+    <!-- Top Bar: Header & Scoreboard -->
+    <header class="w-full max-w-7xl mx-auto flex justify-between items-center bg-slate-800/80 backdrop-blur-md p-3 rounded-2xl border border-slate-700/60 mb-2 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="bg-amber-400 text-slate-900 px-3 py-1.5 rounded-xl font-black text-xl flex items-center gap-2 shadow-md">
+                <span>🕹️</span>
+                <span class="hidden sm:inline">街机版</span>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-extrabold text-amber-300 leading-tight">马来西亚概念：抓娃娃大冒险</h1>
+                <p class="text-xs text-slate-300 hidden md:block">Konsep Gagasan Malaysia (Tahun 6)</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="bg-slate-900/90 px-4 py-1.5 rounded-xl border border-amber-500/40 text-center">
+                <span class="text-[10px] uppercase text-amber-400 font-bold block">得分 Score</span>
+                <span id="score-text" class="text-xl md:text-2xl font-black text-white">0</span>
+            </div>
+            <div class="bg-slate-900/90 px-4 py-1.5 rounded-xl border border-emerald-500/40 text-center">
+                <span class="text-[10px] uppercase text-emerald-400 font-bold block">彩蛋 Eggs</span>
+                <span id="egg-count-text" class="text-xl md:text-2xl font-black text-emerald-300">0 / 6</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Area: Screen Left, Controls Right (Designed for iPad Landscape Dual-Hand) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto grid grid-cols-12 gap-3 md:gap-4 overflow-hidden relative">
+
+        <!-- LEFT SIDE: Claw Machine Arcade Box (Cols 12 on mobile, 8 on tablet/iPad) -->
+        <div class="col-span-12 lg:col-span-8 h-full flex flex-col justify-between">
+            <div id="arcade-box" class="arcade-cabinet arcade-glow relative w-full h-full rounded-3xl overflow-hidden flex flex-col justify-between p-3">
+                
+                <!-- Glass Reflection Overlay -->
+                <div class="glass-reflection absolute inset-0 pointer-events-none z-30"></div>
+
+                <!-- Top Marquee Display -->
+                <div class="z-20 bg-slate-900/90 border-b-2 border-amber-400/50 p-2 rounded-xl text-center flex justify-between items-center shadow-inner">
+                    <span id="status-banner" class="text-xs md:text-sm font-bold text-amber-300 animate-pulse">
+                        💡 使用右侧操控盘把爪子对准知识彩蛋！
+                    </span>
+                    <button onclick="toggleInfoModal()" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 px-3 py-1 rounded-lg border border-amber-400/40">
+                        📖 历史卡片
+                    </button>
+                </div>
+
+                <!-- Claw Canvas & Playground -->
+                <div id="play-area" class="relative w-full flex-1 my-2 overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 rounded-2xl border border-slate-700/50">
+                    
+                    <!-- Cable -->
+                    <div id="claw-rope" class="claw-rope" style="left: 50%; height: 40px;"></div>
+                    
+                    <!-- Claw Head & Arms -->
+                    <div id="claw-head" class="claw-head" style="left: 50%; top: 40px;">
+                        <div class="w-full h-full relative">
+                            <!-- Motor Unit -->
+                            <div class="w-10 h-7 bg-gradient-to-r from-amber-400 to-yellow-500 rounded-t-lg mx-auto border border-yellow-200 shadow-md flex items-center justify-center text-xs font-black text-slate-900">
+                                🦾
+                            </div>
+                            <!-- Left Arm -->
+                            <div class="claw-arm-left"></div>
+                            <!-- Right Arm -->
+                            <div class="claw-arm-right"></div>
+                        </div>
+                    </div>
+
+                    <!-- Prize Basket Container -->
+                    <div id="prizes-container" class="absolute inset-0 pointer-events-none">
+                        <!-- Dynamic Egg Capsules -->
+                    </div>
+
+                    <!-- Prize Chute Slot -->
+                    <div class="absolute bottom-2 right-2 bg-slate-900/90 border-2 border-amber-400 text-yellow-300 rounded-2xl p-2 px-3 text-xs font-bold shadow-2xl flex items-center gap-2 z-10">
+                        <span class="text-lg">🎁</span>
+                        <div>
+                            <div class="text-[9px] text-slate-400 uppercase">Chute</div>
+                            <div>取蛋口</div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- RIGHT SIDE: Side Control Panel (iPad Optimized Thumb Controls) -->
+        <div class="col-span-12 lg:col-span-4 h-full bg-slate-800/90 border-2 border-slate-700 rounded-3xl p-4 flex flex-col justify-between shadow-2xl backdrop-blur-lg">
+            
+            <div class="text-center border-b border-slate-700 pb-2">
+                <h3 class="font-extrabold text-amber-400 text-base flex items-center justify-center gap-2">
+                    <span>🕹️</span> iPad 专属双手操控盘
+                </h3>
+                <p class="text-[11px] text-slate-400">滑动或点击控制抓爪 360° 自由移动</p>
+            </div>
+
+            <!-- Directional D-PAD (Upper Control) -->
+            <div class="flex flex-col items-center justify-center my-auto py-2">
+                <!-- Up -->
+                <button onmousedown="startMove('up')" onmouseup="stopMove()" ontouchstart="startMove('up')" ontouchend="stopMove()" class="pad-btn w-16 h-14 rounded-t-2xl text-2xl text-white font-black mb-1 flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-up"></i>
+                </button>
+                
+                <div class="flex gap-4 items-center">
+                    <!-- Left -->
+                    <button onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()" class="pad-btn w-16 h-14 rounded-l-2xl text-2xl text-white font-black flex items-center justify-center">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+
+                    <!-- Center Joystick Hub Decoration -->
+                    <div class="w-12 h-12 bg-slate-950 rounded-full border-4 border-slate-700 flex items-center justify-center shadow-inner">
+                        <div class="w-5 h-5 bg-amber-400 rounded-full animate-ping opacity-75"></div>
+                    </div>
+
+                    <!-- Right -->
+                    <button onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()" class="pad-btn w-16 h-14 rounded-r-2xl text-2xl text-white font-black flex items-center justify-center">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Down -->
+                <button onmousedown="startMove('down')" onmouseup="stopMove()" ontouchstart="startMove('down')" ontouchend="stopMove()" class="pad-btn w-16 h-14 rounded-b-2xl text-2xl text-white font-black mt-1 flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+
+            <!-- Giant Action Button (Lower Control) -->
+            <div class="mt-2 pt-3 border-t border-slate-700/80">
+                <button onclick="triggerGrab()" id="btn-grab-main" class="grab-btn-giant w-full py-4 md:py-5 rounded-2xl text-white font-black text-xl md:text-2xl tracking-wide flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-crosshairs text-2xl"></i>
+                    <span>🎯 按下抓取！</span>
+                </button>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal 1: Knowledge Egg Quiz & Explanation -->
+    <div id="modal-egg" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-4 border-amber-400 rounded-3xl p-6 max-w-lg w-full text-center space-y-5 shadow-2xl relative">
+            
+            <div id="modal-egg-icon" class="text-6xl animate-bounce">🥚</div>
+            <h3 id="modal-egg-title" class="text-2xl font-black text-amber-300">抓到了历史知识彩蛋！</h3>
+            
+            <div id="modal-egg-desc" class="bg-slate-800 border border-slate-700 p-4 rounded-2xl text-left text-sm text-slate-200 leading-relaxed">
+                <!-- Dynamic text -->
+            </div>
+
+            <div id="modal-egg-quiz" class="space-y-3 text-left">
+                <div id="modal-quiz-question" class="font-bold text-amber-200 text-sm"></div>
+                <div id="modal-quiz-options" class="space-y-2"></div>
+            </div>
+
+            <button onclick="closeEggModal()" id="btn-modal-close" class="hidden w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-base shadow-lg">
+                收下彩蛋，继续挑战！
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal 2: History Knowledge Card Cheat-Sheet -->
+    <div id="modal-info" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 max-w-2xl w-full text-left space-y-4 shadow-2xl overflow-y-auto max-h-[85vh]">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 class="text-xl font-bold text-amber-400">📜 历史考点速查卡 (Konsep Gagasan Malaysia)</h3>
+                <button onclick="toggleInfoModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div class="space-y-3 text-xs md:text-sm text-slate-300">
+                <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl">
+                    <span class="font-bold text-amber-300 block mb-1">💡 什么是马来西亚概念？</span>
+                    将马来亚（PTM）、新加坡、砂拉越及沙巴（文莱曾考虑加入但最终退出）结合起来，成立一个新的联邦国家。
+                </div>
+                <div class="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl">
+                    <span class="font-bold text-blue-300 block mb-1">👤 提出者与时间</span>
+                    国父<strong>东姑阿都拉曼 (Tunku Abdul Rahman)</strong> 于 <strong>1961年5月27日</strong> 在新加坡记者午餐会上首次提出。
+                </div>
+                <div class="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl">
+                    <span class="font-bold text-emerald-300 block mb-1">⭐ 成立马来西亚的5大原因 (Sebab Pembentukan)</span>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><strong>政治 (Politik):</strong> 加强政治合作与区域稳定。</li>
+                        <li><strong>经济 (Ekonomi):</strong> 促进经济发展与扩大商业合作。</li>
+                        <li><strong>社会 (Sosial):</strong> 促进人民团结与改善生活水平。</li>
+                        <li><strong>安全 (Keselamatan):</strong> 对抗共产主义威胁。</li>
+                        <li><strong>摆脱殖民 (Kemerdekaan):</strong> 加快砂拉越、沙巴和新加坡脱离英国殖民。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button onclick="toggleInfoModal()" class="w-full py-3 bg-amber-500 text-slate-900 font-black rounded-xl text-center">
+                关闭速查卡
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal 3: Game Victory Screen -->
+    <div id="modal-victory" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-4 border-emerald-400 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl">
+            <div class="text-7xl animate-bounce">🏆</div>
+            <h3 class="text-3xl font-black text-amber-300">太棒了！通关成功！</h3>
+            <p class="text-slate-300 text-sm">你成功抓到了所有 6 个历史知识彩蛋，完美掌握了**马来西亚概念与5大成立原因**！</p>
+            
+            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-left text-xs space-y-1 text-slate-300">
+                <div class="text-amber-400 font-bold border-b border-slate-700 pb-1">🏅 你的成绩：</div>
+                <p>• 最终积分：<span id="final-score" class="font-bold text-white text-base">0</span> 分</p>
+                <p>• 评价：历史小霸王 (Sejarah Hero!)</p>
+            </div>
+
+            <button onclick="resetGame()" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black rounded-xl text-lg shadow-lg">
+                🔄 重新挑战夹娃娃
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio FX (Web Audio API synthetized so no external asset dependency) -->
+    <script>
+        // Web Audio API Sound Generator for retro arcade sounds
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function playSound(type) {
+            try {
+                if (!audioCtx) audioCtx = new AudioContext();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'move') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.05);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.05);
+                } else if (type === 'grab') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'win') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+                    osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
+                    osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.3); // C6
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                }
+            } catch(e) {}
+        }
+    </script>
+
+    <!-- Game Core Logic -->
+    <script>
+        // Game State Variables
+        let score = 0;
+        let clawX = 50; // Percentage 10% - 90%
+        let clawY = 40; // Pixels from top (min 40px, max ~220px)
+        let isGrabbing = false;
+        let moveTimer = null;
+        let collectedEggIds = new Set();
+
+        // 6 Core Knowledge Eggs
+        const eggData = [
+            {
+                id: 1,
+                title: "🏛️ 政治原因 (Politik)",
+                bg: "bg-red-500",
+                icon: "🏛️",
+                x: 18,
+                y: 190,
+                desc: "成立马来西亚可以加强各地区之间的政治合作，促进政治稳定，建立更强盛的国家！",
+                question: "‘政治原因’的主要目的是什么？",
+                options: ["促进政治稳定与合作", "减少地方选举", "孤立各个成员国"],
+                correct: 0
+            },
+            {
+                id: 2,
+                title: "💰 经济原因 (Ekonomi)",
+                bg: "bg-amber-500",
+                icon: "💰",
+                x: 32,
+                y: 210,
+                desc: "促进各地区经济全面发展，扩大商业贸易活动，并共同善用各地的丰富天然资源。",
+                question: "‘经济原因’能带来什么好处？",
+                options: ["限制天然资源开发", "善用天然资源与扩大商业", "提高物价"],
+                correct: 1
+            },
+            {
+                id: 3,
+                title: "🤝 社会原因 (Sosial)",
+                bg: "bg-emerald-500",
+                icon: "🤝",
+                left: "48%",
+                x: 48,
+                y: 180,
+                desc: "促进各地区人民之间的团结与和谐，加强不同种族之间的交流，改善人民的生活水平。",
+                question: "‘社会原因’重点提倡什么？",
+                options: ["促进种族交流与人民团结", "分化社会阶层", "禁止文化交流"],
+                correct: 0
+            },
+            {
+                id: 4,
+                title: "🛡️ 安全原因 (Keselamatan)",
+                bg: "bg-blue-500",
+                x: 62,
+                y: 220,
+                desc: "共同对抗共产主义威胁，防止共产主义在新加坡及婆罗洲（沙巴、砂拉越）扩散。",
+                question: "‘安全原因’是为了防范什么威胁？",
+                options: ["自然灾害", "共产主义威胁", "海盗入侵"],
+                correct: 1
+            },
+            {
+                id: 5,
+                title: "🕊️ 摆脱殖民 (Kemerdekaan)",
+                bg: "bg-purple-500",
+                x: 76,
+                y: 195,
+                desc: "帮助砂拉越、沙巴及新加坡摆脱英国的殖民统治，加速获得自治与独立！",
+                question: "成立马来西亚协助沙巴和砂拉越摆脱哪个国家的殖民？",
+                options: ["葡萄牙", "英国", "荷兰"],
+                correct: 1
+            },
+            {
+                id: 6,
+                title: "🇧🇳 文莱彩蛋 (Brunei)",
+                bg: "bg-yellow-400",
+                x: 88,
+                y: 215,
+                desc: "文莱（Brunei）曾被考虑加入马来西亚概念中，但最终因为某些因素没有加入！",
+                question: "文莱最终有加入马来西亚吗？",
+                options: ["有加入", "没有加入，最终退出", "从未被考虑过"],
+                correct: 1
+            }
+        ];
+
+        // Init Game on Page Load
+        window.onload = function() {
+            renderEggCapsules();
+            updateClawPosition();
+        };
+
+        // Render Egg Capsules into Playground
+        function renderEggCapsules() {
+            const container = document.getElementById('prizes-container');
+            container.innerHTML = '';
+
+            eggData.forEach(egg => {
+                const isCollected = collectedEggIds.has(egg.id);
+                const div = document.createElement('div');
+                div.className = `egg-capsule ${egg.bg} ${isCollected ? 'opacity-30 scale-75' : 'animate-bounce'}`;
+                div.style.left = `${egg.x}%`;
+                div.style.top = `${egg.y}px`;
+                div.style.animationDuration = `${2 + (egg.id % 3) * 0.5}s`;
+                div.id = `egg-item-${egg.id}`;
+                div.innerHTML = egg.icon;
+                container.appendChild(div);
+            });
+        }
+
+        // Smooth Movement Controller for Joystick Buttons
+        function startMove(dir) {
+            if (isGrabbing) return;
+            playSound('move');
+            moveTimer = setInterval(() => {
+                if (dir === 'left') clawX = Math.max(12, clawX - 1.5);
+                if (dir === 'right') clawX = Math.min(88, clawX + 1.5);
+                if (dir === 'up') clawY = Math.max(30, clawY - 4);
+                if (dir === 'down') clawY = Math.min(180, clawY + 4);
+                updateClawPosition();
+            }, 30);
+        }
+
+        function stopMove() {
+            if (moveTimer) {
+                clearInterval(moveTimer);
+                moveTimer = null;
+            }
+        }
+
+        function updateClawPosition() {
+            const rope = document.getElementById('claw-rope');
+            const head = document.getElementById('claw-head');
+            rope.style.left = `${clawX}%`;
+            rope.style.height = `${clawY}px`;
+            head.style.left = `${clawX}%`;
+            head.style.top = `${clawY}px`;
+        }
+
+        // Trigger Claw Drop Action
+        function triggerGrab() {
+            if (isGrabbing) return;
+            isGrabbing = true;
+            playSound('grab');
+            
+            const btn = document.getElementById('btn-grab-main');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            const head = document.getElementById('claw-head');
+            const rope = document.getElementById('claw-rope');
+
+            // Close claw arms visually
+            head.classList.add('claw-grabbing');
+
+            // Extend claw to bottom
+            const targetY = 220;
+            const originalY = clawY;
+            
+            rope.style.transition = 'height 0.6s cubic-bezier(0.25, 1, 0.5, 1)';
+            head.style.transition = 'top 0.6s cubic-bezier(0.25, 1, 0.5, 1)';
+            
+            rope.style.height = `${targetY}px`;
+            head.style.top = `${targetY}px`;
+
+            setTimeout(() => {
+                // Check Collision with Eggs
+                let caughtEgg = null;
+                eggData.forEach(egg => {
+                    if (!collectedEggIds.has(egg.id)) {
+                        const distX = Math.abs(egg.x - clawX);
+                        if (distX < 9) { // Collision tolerance
+                            caughtEgg = egg;
+                        }
+                    }
+                });
+
+                // If caught, attach egg to claw
+                let eggElem = null;
+                if (caughtEgg) {
+                    eggElem = document.getElementById(`egg-item-${caughtEgg.id}`);
+                    if (eggElem) {
+                        eggElem.style.transition = 'all 0.6s ease';
+                        eggElem.style.top = `${targetY + 25}px`;
+                        eggElem.style.left = `${clawX}%`;
+                    }
+                }
+
+                // Retract Claw back up
+                setTimeout(() => {
+                    rope.style.height = `${originalY}px`;
+                    head.style.top = `${originalY}px`;
+                    if (eggElem) {
+                        eggElem.style.top = `${originalY + 25}px`;
+                    }
+
+                    setTimeout(() => {
+                        // Reset Transitions
+                        rope.style.transition = 'none';
+                        head.style.transition = 'none';
+                        head.classList.remove('claw-grabbing');
+                        isGrabbing = false;
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50');
+
+                        if (caughtEgg) {
+                            openEggQuizModal(caughtEgg);
+                        } else {
+                            document.getElementById('status-banner').innerText = "😅 没抓到！调整好位置再试一次吧！";
+                        }
+                    }, 650);
+
+                }, 400);
+
+            }, 650);
+        }
+
+        // Egg Quiz Modal Popup
+        function openEggQuizModal(egg) {
+            playSound('win');
+            collectedEggIds.add(egg.id);
+            document.getElementById('egg-count-text').innerText = `${collectedEggIds.size} / ${eggData.length}`;
+
+            const modal = document.getElementById('modal-egg');
+            document.getElementById('modal-egg-icon').innerText = egg.icon;
+            document.getElementById('modal-egg-title').innerText = egg.title;
+            document.getElementById('modal-egg-desc').innerHTML = `
+                <p class="font-bold text-amber-300 mb-1">💡 知识要点：</p>
+                <p>${egg.desc}</p>
+            `;
+
+            // Quiz Render
+            document.getElementById('modal-quiz-question').innerText = egg.question;
+            const optionsDiv = document.getElementById('modal-quiz-options');
+            optionsDiv.innerHTML = egg.options.map((opt, idx) => `
+                <button onclick="answerEggQuiz(${idx}, ${egg.correct})" class="w-full text-left p-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-amber-500/20 hover:border-amber-400 font-bold text-xs text-slate-200 transition-all">
+                    ${opt}
+                </button>
+            `).join('');
+
+            document.getElementById('btn-modal-close').classList.add('hidden');
+            modal.classList.remove('hidden');
+
+            confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        }
+
+        function answerEggQuiz(selected, correct) {
+            const optionsDiv = document.getElementById('modal-quiz-options');
+            if (selected === correct) {
+                score += 30;
+                document.getElementById('score-text').innerText = score;
+                optionsDiv.innerHTML = `
+                    <div class="p-3 bg-emerald-500/20 border border-emerald-400 text-emerald-300 rounded-xl font-bold text-xs">
+                        ✅ 答对了！历史学霸！积分 +30 分！
+                    </div>
+                `;
+            } else {
+                score += 10;
+                document.getElementById('score-text').innerText = score;
+                optionsDiv.innerHTML = `
+                    <div class="p-3 bg-red-500/20 border border-red-400 text-red-300 rounded-xl font-bold text-xs">
+                        ❌ 差一点点！不过也奖励你 10 积分！记住知识点哦！
+                    </div>
+                `;
+            }
+
+            document.getElementById('btn-modal-close').classList.remove('hidden');
+        }
+
+        function closeEggModal() {
+            document.getElementById('modal-egg').classList.add('hidden');
+            renderEggCapsules();
+
+            if (collectedEggIds.size === eggData.length) {
+                setTimeout(showVictoryModal, 500);
+            }
+        }
+
+        function toggleInfoModal() {
+            const info = document.getElementById('modal-info');
+            info.classList.toggle('hidden');
+        }
+
+        function showVictoryModal() {
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('modal-victory').classList.remove('hidden');
+            confetti({ particleCount: 200, spread: 100 });
+        }
+
+        function resetGame() {
+            score = 0;
+            collectedEggIds.clear();
+            document.getElementById('score-text').innerText = '0';
+            document.getElementById('egg-count-text').innerText = `0 / ${eggData.length}`;
+            document.getElementById('modal-victory').classList.add('hidden');
+            clawX = 50;
+            clawY = 40;
+            updateClawPosition();
+            renderEggCapsules();
+        }
+    </script>
+</body>
+</html>
